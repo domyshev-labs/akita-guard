@@ -157,3 +157,50 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(try InputValidation.server("http://192.168.1.10:9120").host, "192.168.1.10")
     }
 }
+
+extension APIClientTests {
+    func testThirtyDayLeaseAndEmptyLabelAreSent() async throws {
+        let client = makeClient { request in
+            let payload = try! JSONSerialization.jsonObject(with: self.body(request)) as! [String: Any]
+            XCTAssertEqual(payload["ttl_seconds"] as? Int, 2592000)
+            XCTAssertEqual(payload["label"] as? String, "")
+            return (202, self.data("{\"state\":\"queued\",\"revision\":\"new\"}"))
+        }
+        _ = try await client.add(address: "8.8.8.8", label: "", ttl: 2592000)
+    }
+
+    func testHistoryQueryAndBlockedDecode() async throws {
+        let client = makeClient { request in
+            XCTAssertEqual(request.url?.path, "/v1/entries")
+            XCTAssertEqual(request.url?.query, "include_expired=1")
+            return (200, self.data("{\"version\":1,\"revision\":\"r\",\"entries\":[{\"id\":\"a\",\"address\":\"8.8.8.8\",\"expires_at\":\"2026-10-17T18:12:30Z\",\"blocked\":true}]}"))
+        }
+        let result = try await client.entries(includeExpired: true)
+        XCTAssertTrue(result.entries[0].isBlocked)
+    }
+
+    func testRenameAndBlockUsePatchWithoutResettingLease() async throws {
+        let client = makeClient { request in
+            XCTAssertEqual(request.url?.path, "/v1/entries/a")
+            XCTAssertEqual(request.httpMethod, "PATCH")
+            let payload = try! JSONSerialization.jsonObject(with: self.body(request)) as! [String: Any]
+            XCTAssertNil(payload["ttl_seconds"])
+            XCTAssertTrue(payload["label"] != nil || payload["blocked"] != nil)
+            return (202, self.data("{\"state\":\"queued\",\"revision\":\"new\"}"))
+        }
+        _ = try await client.rename(id: "a", label: "")
+        _ = try await client.setBlocked(id: "a", blocked: true)
+        _ = try await client.setBlocked(id: "a", blocked: false)
+    }
+
+    func testStaleAttemptsAreNotFreshAndNeverGrantAccess() async throws {
+        let client = makeClient { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/v1/attempts")
+            return (200, self.data("{\"checked_at\":\"2026-01-01T00:00:00Z\",\"entries\":[{\"address\":\"8.8.8.8\",\"last_seen\":\"2026-01-01T00:00:00Z\",\"count\":2,\"port\":443,\"protocol\":\"tcp\"}]}"))
+        }
+        let result = try await client.attempts()
+        XCTAssertFalse(result.isFresh)
+        XCTAssertEqual(result.entries[0].address, "8.8.8.8")
+    }
+}

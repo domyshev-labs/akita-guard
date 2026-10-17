@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum AppTab { case access, settings }
+private enum AppTab { case access, attempts, settings }
 
 struct RootView: View {
     @EnvironmentObject private var store: AccessStore
@@ -11,16 +11,22 @@ struct RootView: View {
         TabView(selection: $tab) {
             AccessListView { tab = .settings }
                 .tabItem { Label("Доступ", systemImage: "network") }.tag(AppTab.access)
+            AttemptsView()
+                .tabItem { Label("Попытки", systemImage: "list.bullet.rectangle") }.tag(AppTab.attempts)
             SettingsView()
                 .tabItem { Label("Настройки", systemImage: "gearshape") }.tag(AppTab.settings)
         }
         .onAppear {
             if store.demo && ProcessInfo.processInfo.arguments.contains("--preview-settings") { tab = .settings }
+            if store.demo && ProcessInfo.processInfo.arguments.contains("--preview-attempts") { tab = .attempts }
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
-                if !store.busy { await store.refresh() }
+                if !store.busy {
+                    await store.refresh()
+                    if tab == .attempts { await store.refreshAttempts() }
+                }
                 do { try await Task.sleep(nanoseconds: 15_000_000_000) }
                 catch { break }
             }
@@ -35,6 +41,8 @@ struct AccessListView: View {
     @EnvironmentObject private var store: AccessStore
     @State private var adding = false
     @State private var deleting: AccessEntry?
+    @State private var renewing: AccessEntry?
+    @State private var editing: AccessEntry?
     let openSettings: () -> Void
 
     var body: some View {
@@ -83,7 +91,7 @@ struct AccessListView: View {
                             .frame(maxWidth: .infinity).padding(.vertical, 20)
                         } else {
                             ForEach(store.activeEntries) { entry in
-                                EntryRow(entry: entry)
+                                EntryRow(entry: entry, renew: { renewing = entry }, edit: { editing = entry }, remove: { deleting = entry })
                                     .swipeActions {
                                         Button("Отозвать", role: .destructive) { deleting = entry }
                                             .disabled(store.busy)
@@ -98,6 +106,24 @@ struct AccessListView: View {
                         Text("Разрешённые адреса")
                     } footer: {
                         Text("Домашняя сеть разрешена отдельно. Временный доступ завершится автоматически.")
+                    }
+                    if !store.blockedEntries.isEmpty {
+                        Section("Заблокированы вручную") {
+                            ForEach(store.blockedEntries) { entry in
+                                EntryRow(entry: entry, renew: { renewing = entry }, edit: { editing = entry }, remove: { deleting = entry })
+                                    .swipeActions { Button("Удалить", role: .destructive) { deleting = entry } }
+                            }
+                        }
+                    }
+                    if !store.expiredEntries.isEmpty {
+                        Section("Срок истёк") {
+                            ForEach(store.expiredEntries) { entry in
+                                EntryRow(entry: entry, renew: { renewing = entry }, edit: { editing = entry }, remove: { deleting = entry })
+                                    .swipeActions {
+                                        Button("Удалить", role: .destructive) { deleting = entry }
+                                    }
+                            }
+                        }
                     }
                     if store.configured {
                         Section {
@@ -129,12 +155,14 @@ struct AccessListView: View {
                 }
             }
             .sheet(isPresented: $adding) { AddEntryView() }
+            .sheet(item: $renewing) { AddEntryView(entry: $0) }
+            .sheet(item: $editing) { EditLabelView(entry: $0) }
             .onAppear {
                 if store.demo && ProcessInfo.processInfo.arguments.contains("--preview-add") { adding = true }
             }
-            .confirmationDialog("Отозвать доступ?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            .confirmationDialog("Удалить адрес?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
                 if let entry = deleting {
-                    Button("Отозвать \(entry.address)", role: .destructive) {
+                    Button("Удалить \(entry.address)", role: .destructive) {
                         deleting = nil
                         Task { await store.remove(entry) }
                     }
@@ -179,23 +207,30 @@ private struct StatusCard: View {
                 HStack(spacing: 7) {
                     Circle().fill(state.2).frame(width: 7, height: 7)
                     Text(state.0).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    RefreshButton()
                 }
                 Text(state.1).font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 26))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
 private struct EntryRow: View {
     let entry: AccessEntry
+    let renew: () -> Void
+    let edit: () -> Void
+    let remove: () -> Void
+    @EnvironmentObject private var store: AccessStore
 
     private var remaining: String {
         let minutes = max(0, Int(entry.expiresAt.timeIntervalSinceNow / 60))
         if minutes == 0 { return "меньше минуты" }
         let hours = minutes / 60
+        if hours >= 24 { return "\(hours / 24) д \(hours % 24) ч" }
         return hours == 0 ? "\(minutes) мин" : "\(hours) ч \(minutes % 60) мин"
     }
 
@@ -206,18 +241,36 @@ private struct EntryRow: View {
                 .frame(width: 42, height: 42)
                 .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 6) {
-                Text(entry.label?.isEmpty == false ? entry.label! : "Без названия").font(.headline)
-                Text(entry.address).font(.system(.subheadline, design: .monospaced)).textSelection(.enabled)
-                    .foregroundStyle(.secondary).lineLimit(2)
+                Text(entry.label?.isEmpty == false ? entry.label! : entry.address).font(.headline)
+                if entry.label?.isEmpty == false {
+                    Text(entry.address).font(.system(.subheadline, design: .monospaced)).textSelection(.enabled)
+                        .foregroundStyle(.secondary).lineLimit(2)
+                }
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
-                    Text("Ещё \(remaining)")
-                    Text("· до \(entry.expiresAt.formatted(.dateTime.hour().minute()))")
+                    Text(entry.expiresAt <= Date() ? "Срок истёк" : entry.isBlocked ? "Заблокирован" : "Ещё \(remaining)")
                 }.font(.caption).foregroundStyle(.secondary)
+                Text(entry.expiresAt, format: .dateTime.day().month(.abbreviated).hour().minute())
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 20) {
+                    Button(action: edit) { Label("Название", systemImage: "pencil") }
+                        .accessibilityLabel("Изменить название \(entry.address)")
+                    Button(action: renew) { Label("Продлить", systemImage: "arrow.clockwise") }
+                        .accessibilityLabel("Продлить доступ \(entry.address)")
+                }.font(.caption).buttonStyle(.borderless).disabled(store.busy)
+                Button(role: .destructive, action: remove) { Label("Удалить", systemImage: "trash") }
+                    .font(.caption).buttonStyle(.borderless).disabled(store.busy)
+                if entry.expiresAt > Date() {
+                    Button {
+                        Task { await store.setBlocked(entry) }
+                    } label: {
+                        Label(entry.isBlocked ? "Разблокировать" : "Блокировать", systemImage: entry.isBlocked ? "lock.open" : "lock")
+                    }.font(.caption).buttonStyle(.borderless).disabled(store.busy)
+                }
             }
             Spacer(minLength: 0)
         }.padding(.vertical, 9)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -225,11 +278,18 @@ struct AddEntryView: View {
     @EnvironmentObject private var store: AccessStore
     @Environment(\.dismiss) private var dismiss
     @State private var address = ""
-    @State private var label = "Работа"
+    @State private var label = ""
     @State private var ttl = 28800
     @State private var submitting = false
     @State private var localError: String?
     @FocusState private var addressFocused: Bool
+    private let renewing: Bool
+
+    init(entry: AccessEntry? = nil, address: String = "") {
+        _address = State(initialValue: entry?.address ?? address)
+        _label = State(initialValue: entry?.label ?? "")
+        renewing = entry != nil
+    }
 
     var body: some View {
         NavigationStack {
@@ -238,12 +298,12 @@ struct AddEntryView: View {
                     TextField("Например, внешний IP офиса", text: $address)
                         .keyboardType(.asciiCapable).textInputAutocapitalization(.never).autocorrectionDisabled()
                         .font(.system(.body, design: .monospaced)).focused($addressFocused)
-                        .accessibilityIdentifier("ipAddress")
+                        .accessibilityIdentifier("ipAddress").disabled(renewing)
                 } header: { Text("Публичный IP") } footer: {
                     Text("Узнай адрес на рабочем компьютере. Можно указать IPv4 или IPv6, без маски сети.")
                 }
                 Section("Название") {
-                    TextField("Работа, ноутбук…", text: $label)
+                    TextField("Необязательно", text: $label)
                         .onChange(of: label) { _, value in if value.count > 120 { label = String(value.prefix(120)) } }
                 }
                 Section {
@@ -252,6 +312,8 @@ struct AddEntryView: View {
                         Text("4 часа").tag(14400)
                         Text("8 часов").tag(28800)
                         Text("24 часа").tag(86400)
+                        Text("7 дней").tag(604800)
+                        Text("30 дней").tag(2592000)
                     }
                     HStack {
                         Text("До").foregroundStyle(.secondary)
@@ -259,7 +321,7 @@ struct AddEntryView: View {
                         Text(Date().addingTimeInterval(Double(ttl)), format: .dateTime.day().month(.abbreviated).hour().minute())
                     }
                 } header: { Text("Время доступа") } footer: {
-                    Text("Доступ завершится автоматически. Повторное добавление этого IP обновит срок.")
+                    Text("Срок отсчитывается с подтверждения. Продление также снимает ручную блокировку этого IP.")
                 }
                 Section {
                     Button {
@@ -283,7 +345,7 @@ struct AddEntryView: View {
                     .accessibilityIdentifier("grantAccess")
                 }
             }
-            .navigationTitle("Добавить IP").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(renewing ? "Продлить доступ" : "Добавить IP").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Отмена") { dismiss() }.disabled(submitting)
@@ -346,8 +408,16 @@ struct SettingsView: View {
                         Label("Демонстрация · без подключения", systemImage: "eye")
                             .foregroundStyle(.secondary).font(.subheadline)
                     } else if store.configured {
-                        Label(store.online ? "Akita отвечает" : "Подключение не подтверждено", systemImage: store.online ? "checkmark.circle.fill" : "wifi.exclamationmark")
-                            .foregroundStyle(store.online ? Color.accentColor : .secondary).font(.subheadline)
+                        HStack {
+                            Label(store.online ? "Akita отвечает" : "Подключение не подтверждено", systemImage: store.online ? "checkmark.circle.fill" : "wifi.exclamationmark")
+                                .foregroundStyle(store.online ? Color.accentColor : .secondary).font(.subheadline)
+                            Spacer()
+                            RefreshButton()
+                        }
+                        if let checked = store.lastChecked {
+                            LabeledContent("Успешная проверка", value: checked.formatted(date: .abbreviated, time: .standard))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if store.configured && !store.demo {
@@ -358,7 +428,7 @@ struct SettingsView: View {
                 }
                 Section {
                     LabeledContent("Сервер", value: "Akita")
-                    LabeledContent("Версия", value: "1.0")
+                    LabeledContent("Версия", value: "1.1")
                 } footer: {
                     Text(store.demo ? "Демонстрационный режим. Подключений к серверу нет." : "Tailscale защищает путь до домашнего шлюза. Между шлюзом и Akita API использует HTTP внутри LAN.")
                 }
@@ -377,3 +447,114 @@ struct SettingsView: View {
 }
 
 #Preview { RootView().environmentObject(AccessStore(demo: true)) }
+
+private struct RefreshButton: View {
+    @EnvironmentObject private var store: AccessStore
+    var body: some View {
+        Button { Task { await store.refresh(showError: true) } } label: {
+            if store.refreshing { ProgressView() }
+            else { Image(systemName: "arrow.clockwise") }
+        }
+        .buttonStyle(.borderless)
+        .disabled(!store.configured || store.busy || store.refreshing)
+        .accessibilityLabel("Проверить подключение к Akita")
+    }
+}
+
+private struct EditLabelView: View {
+    @EnvironmentObject private var store: AccessStore
+    @Environment(\.dismiss) private var dismiss
+    let entry: AccessEntry
+    @State private var label: String
+    @State private var saving = false
+    init(entry: AccessEntry) {
+        self.entry = entry
+        _label = State(initialValue: entry.label ?? "")
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(entry.address).font(.system(.body, design: .monospaced))
+                    TextField("Необязательно", text: $label)
+                        .onChange(of: label) { _, value in label = String(value.prefix(120)) }
+                } header: { Text("Название") } footer: {
+                    Text("Можно оставить пустым. Срок доступа не изменится.")
+                }
+                Button("Сохранить") {
+                    saving = true
+                    Task {
+                        let success = await store.rename(entry, label: label.trimmingCharacters(in: .whitespacesAndNewlines))
+                        saving = false
+                        if success { dismiss() }
+                    }
+                }.disabled(saving || store.busy)
+            }
+            .navigationTitle("Название IP").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() }.disabled(saving) } }
+        }.interactiveDismissDisabled(saving)
+    }
+}
+
+private struct AttemptsView: View {
+    @EnvironmentObject private var store: AccessStore
+    @State private var selected: ConnectionAttempt?
+    @State private var lastLoaded: Date?
+
+    private func reload() async {
+        await store.refreshAttempts()
+        // Only a successful fetch is marked as a new load, even if the collector is stale.
+        if store.attemptsLoadedAt != nil { lastLoaded = store.attemptsLoadedAt }
+    }
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Открой домашний сервис на рабочем компьютере, затем обнови этот список. Здесь адреса, которые увидела Akita.")
+                    Text("Попытки могут принадлежать сканерам. Перед разрешением сверь время со своим подключением.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    if let loaded = lastLoaded {
+                        LabeledContent("Загружено", value: loaded.formatted(date: .abbreviated, time: .standard))
+                            .font(.caption)
+                    }
+                    if !store.attemptsFresh {
+                        Label("Нет свежих данных сборщика", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange).font(.subheadline)
+                    }
+                }
+                Section {
+                    if store.attempts.isEmpty {
+                        Text("Попыток пока нет").foregroundStyle(.secondary)
+                    }
+                    ForEach(store.attempts) { item in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(item.address).font(.system(.headline, design: .monospaced)).textSelection(.enabled)
+                            Text(item.lastSeen, format: .dateTime.day().month(.abbreviated).hour().minute().second())
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Text("Наблюдений: \(item.count) · \(item.protocol.uppercased()):\(item.port)")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button("Разрешить…") { selected = item }
+                                .disabled(store.busy || !store.attemptsFresh)
+                        }.padding(.vertical, 6)
+                    }
+                } header: { Text("Заблокированные за 24 часа") } footer: {
+                    Text("Повторы группируются по IP. Сбор ограничен по частоте; это не полный журнал всех соединений. Автоматического разрешения нет.")
+                }
+            }
+            .navigationTitle("Попытки")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { Task { await reload() } } label: {
+                        if store.attemptsRefreshing { ProgressView() }
+                        else { Image(systemName: "arrow.clockwise") }
+                    }.disabled(!store.configured || store.busy || store.attemptsRefreshing)
+                        .accessibilityLabel("Обновить попытки подключения")
+                }
+            }
+            .refreshable { await reload() }
+            .task { await reload() }
+            .onChange(of: store.attemptsLoadedAt) { _, value in lastLoaded = value }
+            .sheet(item: $selected) { AddEntryView(address: $0.address) }
+        }
+    }
+}

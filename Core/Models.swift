@@ -6,14 +6,42 @@ public struct AccessEntry: Codable, Identifiable, Equatable {
     public let address: String
     public let label: String?
     public let expiresAt: Date
+    public let blocked: Bool?
+    public var isBlocked: Bool { blocked ?? false }
 
-    public init(id: String, address: String, label: String?, expiresAt: Date) {
-        self.id = id; self.address = address; self.label = label; self.expiresAt = expiresAt
+    public init(id: String, address: String, label: String?, expiresAt: Date, blocked: Bool? = nil) {
+        self.id = id; self.address = address; self.label = label; self.expiresAt = expiresAt; self.blocked = blocked
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, address, label
+        case id, address, label, blocked
         case expiresAt = "expires_at"
+    }
+}
+
+public struct ConnectionAttempt: Decodable, Identifiable {
+    public var id: String { address }
+    public let address: String
+    public let lastSeen: Date
+    public let count: Int
+    public let port: Int
+    public let `protocol`: String
+    enum CodingKeys: String, CodingKey {
+        case address, count, port, `protocol`
+        case lastSeen = "last_seen"
+    }
+}
+
+public struct AttemptsResponse: Decodable {
+    public let entries: [ConnectionAttempt]
+    public let checkedAt: Date?
+    enum CodingKeys: String, CodingKey {
+        case entries
+        case checkedAt = "checked_at"
+    }
+    public var isFresh: Bool {
+        guard let checkedAt else { return false }
+        return (-10...30).contains(Date().timeIntervalSince(checkedAt))
     }
 }
 
@@ -68,7 +96,7 @@ public enum AccessError: LocalizedError {
         case .invalidAddress: return "Введи один IPv4 или IPv6 адрес без маски сети."
         case .invalidToken: return "Вставь токен API целиком, без имени переменной и пробелов."
         case .unauthorized: return "Токен не принят. Проверь его в настройках."
-        case .invalidRequest: return "Сервер отклонил запрос. Нужен публичный IP и срок от минуты до 24 часов."
+        case .invalidRequest: return "Сервер отклонил запрос. Нужен публичный IP и срок от минуты до 30 дней."
         case .missingEntry: return "Этот адрес уже удалён. Обнови список."
         case .serverUnavailable: return "Обработчик на Akita временно недоступен. Попробуй обновить список."
         case .unexpectedResponse: return "Ответ не похож на API Akita. Проверь адрес сервера."

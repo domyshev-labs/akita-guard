@@ -26,7 +26,10 @@ public final class APIClient {
     deinit { session.invalidateAndCancel() }
 
     private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil) async throws -> T {
-        var request = URLRequest(url: base.appendingPathComponent("v1").appendingPathComponent(path))
+        let pieces = path.split(separator: "?", maxSplits: 1)
+        var components = URLComponents(url: base.appendingPathComponent("v1").appendingPathComponent(String(pieces[0])), resolvingAgainstBaseURL: false)!
+        if pieces.count == 2 { components.percentEncodedQuery = String(pieces[1]) }
+        var request = URLRequest(url: components.url!)
         request.httpMethod = method
         request.httpBody = body
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -52,11 +55,23 @@ public final class APIClient {
         catch { throw AccessError.unexpectedResponse }
     }
 
-    public func entries() async throws -> EntriesResponse { try await request("entries") }
+    public func entries(includeExpired: Bool = false) async throws -> EntriesResponse {
+        try await request(includeExpired ? "entries?include_expired=1" : "entries")
+    }
+    public func attempts() async throws -> AttemptsResponse { try await request("attempts") }
+    public func rename(id: String, label: String) async throws -> MutationResponse {
+        guard !id.isEmpty, id.count <= 64, id.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }), label.count <= 120 else { throw AccessError.invalidRequest }
+        let body = try JSONEncoder().encode(["label": label])
+        return try await request("entries/" + id, method: "PATCH", body: body)
+    }
+    public func setBlocked(id: String, blocked: Bool) async throws -> MutationResponse {
+        guard !id.isEmpty, id.count <= 64, id.utf8.allSatisfy({ (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }) else { throw AccessError.invalidRequest }
+        return try await request("entries/" + id, method: "PATCH", body: JSONEncoder().encode(["blocked": blocked]))
+    }
     public func status() async throws -> WorkerStatus { try await request("status") }
 
     public func snapshot() async throws -> Snapshot {
-        async let entries = entries()
+        async let entries = entries(includeExpired: true)
         async let status = status()
         return try await Snapshot(entries: entries, status: status)
     }
@@ -64,7 +79,7 @@ public final class APIClient {
     public func add(address: String, label: String, ttl: Int) async throws -> MutationResponse {
         struct Body: Encodable { let address: String; let label: String; let ttl_seconds: Int }
         let normalized = try InputValidation.address(address)
-        guard (60...86400).contains(ttl), label.count <= 120 else { throw AccessError.invalidRequest }
+        guard (60...2592000).contains(ttl), label.count <= 120 else { throw AccessError.invalidRequest }
         let body = try JSONEncoder().encode(Body(address: normalized, label: label, ttl_seconds: ttl))
         return try await request("entries", method: "POST", body: body)
     }
