@@ -1,0 +1,42 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		E00436354BD62EE8D51B434B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AkitaGuardApp.swift"; sourceTree = "<group>"; };
+		09C2215F404D5742D6D8572C = {isa = PBXBuildFile; fileRef = E00436354BD62EE8D51B434B; };
+		A01476A8BC22F0D9E0AB122C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AccessStore.swift"; sourceTree = "<group>"; };
+		21273C2304867A722A3D2DAB = {isa = PBXBuildFile; fileRef = A01476A8BC22F0D9E0AB122C; };
+		C80BC7607A3834C0766FDA5C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Keychain.swift"; sourceTree = "<group>"; };
+		C4F662BE68AA407D734525A6 = {isa = PBXBuildFile; fileRef = C80BC7607A3834C0766FDA5C; };
+		9720F86F5984AACA8FCA9A6C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Views.swift"; sourceTree = "<group>"; };
+		BA4DAF05CB73105357978A08 = {isa = PBXBuildFile; fileRef = 9720F86F5984AACA8FCA9A6C; };
+		28AACD9726828D88619AA1B0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Models.swift"; sourceTree = "<group>"; };
+		93791ED83B9056334DE4691F = {isa = PBXBuildFile; fileRef = 28AACD9726828D88619AA1B0; };
+		F95AB624164DF0872D8AC65F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient.swift"; sourceTree = "<group>"; };
+		0B7EA22DB8B0F310DC9350EC = {isa = PBXBuildFile; fileRef = F95AB624164DF0872D8AC65F; };
+		49FD95CD032EF842D70FF423 = {isa = PBXGroup; children = (E00436354BD62EE8D51B434B, A01476A8BC22F0D9E0AB122C, C80BC7607A3834C0766FDA5C, 9720F86F5984AACA8FCA9A6C); path = "App"; sourceTree = "<group>"; };
+		D351C9A317C8912B1644C554 = {isa = PBXGroup; children = (28AACD9726828D88619AA1B0, F95AB624164DF0872D8AC65F); path = "Core"; sourceTree = "<group>"; };
+		3685E330EC5277A9DD5661C6 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8EFD5743999F168D176AB696 = {isa = PBXBuildFile; fileRef = 3685E330EC5277A9DD5661C6; };
+		3369DAFFDF1BFEB15563947E = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info.plist"; sourceTree = "<group>"; };
+		B8ED3E13CBD1A5DB390C5CFA = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "README.md"; sourceTree = "<group>"; };
+		6DDDCDEAC9B9EC2EB009760F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Package.swift"; sourceTree = "<group>"; };
+		38A007151ABE87CC01A5B6E9 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AkitaGuard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FBDC4F23F93125BBEEAE800C = {isa = PBXGroup; children = (38A007151ABE87CC01A5B6E9); name = Products; sourceTree = "<group>"; };
+		B28B7AF69320201D1CF206EB = {isa = PBXGroup; children = (49FD95CD032EF842D70FF423, D351C9A317C8912B1644C554, 3685E330EC5277A9DD5661C6, 3369DAFFDF1BFEB15563947E, B8ED3E13CBD1A5DB390C5CFA, 6DDDCDEAC9B9EC2EB009760F, FBDC4F23F93125BBEEAE800C); sourceTree = "<group>"; };
+		BCE16DD0260827ECF338C787 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (09C2215F404D5742D6D8572C, 21273C2304867A722A3D2DAB, C4F662BE68AA407D734525A6, BA4DAF05CB73105357978A08, 93791ED83B9056334DE4691F, 0B7EA22DB8B0F310DC9350EC); runOnlyForDeploymentPostprocessing = 0; };
+		7561BFB015D8F536760CB671 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		0189424A5A60FED329FA868E = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (8EFD5743999F168D176AB696); runOnlyForDeploymentPostprocessing = 0; };
+		0E8A3AD980EC179856012B7E = {isa = PBXNativeTarget; buildConfigurationList = D7EA9B19BC5DAF32223C3C8B; buildPhases = (BCE16DD0260827ECF338C787, 7561BFB015D8F536760CB671, 0189424A5A60FED329FA868E); buildRules = (); dependencies = (); name = AkitaGuard; productName = AkitaGuard; productReference = 38A007151ABE87CC01A5B6E9; productType = "com.apple.product-type.application"; };
+		89E1FD6268CC0F221A2BE178 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = "YES"; IPHONEOS_DEPLOYMENT_TARGET = "17.0"; SDKROOT = "iphoneos"; SWIFT_VERSION = "5.0"; ENABLE_USER_SCRIPT_SANDBOXING = "YES"; CLANG_WARN_DOCUMENTATION_COMMENTS = "YES"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; DEBUG_INFORMATION_FORMAT = "dwarf"; ENABLE_TESTABILITY = "YES";}; name = Debug; };
+		E6DE6C99132752C914FEF632 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = "YES"; IPHONEOS_DEPLOYMENT_TARGET = "17.0"; SDKROOT = "iphoneos"; SWIFT_VERSION = "5.0"; ENABLE_USER_SCRIPT_SANDBOXING = "YES"; CLANG_WARN_DOCUMENTATION_COMMENTS = "YES"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release; };
+		389E3AB3166B5E85D4DB22E9 = {isa = XCConfigurationList; buildConfigurations = (89E1FD6268CC0F221A2BE178, E6DE6C99132752C914FEF632); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		7082CC0B6FC1282FCEABD07A = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon"; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "AccentColor"; CODE_SIGN_STYLE = "Automatic"; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = "NO"; INFOPLIST_FILE = "Info.plist"; PRODUCT_BUNDLE_IDENTIFIER = "com.domyshev.AkitaGuard"; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = "1"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = "NO"; SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = "NO"; SWIFT_EMIT_LOC_STRINGS = "YES"; SWIFT_STRICT_CONCURRENCY = "targeted"; MARKETING_VERSION = "1.0"; CURRENT_PROJECT_VERSION = "1"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; DEBUG_INFORMATION_FORMAT = "dwarf"; ENABLE_TESTABILITY = "YES";}; name = Debug; };
+		639A7CA24D39909E713B47F7 = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon"; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "AccentColor"; CODE_SIGN_STYLE = "Automatic"; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = "NO"; INFOPLIST_FILE = "Info.plist"; PRODUCT_BUNDLE_IDENTIFIER = "com.domyshev.AkitaGuard"; PRODUCT_NAME = "$(TARGET_NAME)"; TARGETED_DEVICE_FAMILY = "1"; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = "NO"; SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = "NO"; SWIFT_EMIT_LOC_STRINGS = "YES"; SWIFT_STRICT_CONCURRENCY = "targeted"; MARKETING_VERSION = "1.0"; CURRENT_PROJECT_VERSION = "1"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release; };
+		D7EA9B19BC5DAF32223C3C8B = {isa = XCConfigurationList; buildConfigurations = (7082CC0B6FC1282FCEABD07A, 639A7CA24D39909E713B47F7); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		98F54143AB4E86B28C3AFEE0 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 2700; TargetAttributes = {0E8A3AD980EC179856012B7E = {CreatedOnToolsVersion = 27.1; ProvisioningStyle = Automatic; }; }; }; buildConfigurationList = 389E3AB3166B5E85D4DB22E9; compatibilityVersion = "Xcode 14.0"; developmentRegion = ru; hasScannedForEncodings = 0; knownRegions = (ru, en, Base); mainGroup = B28B7AF69320201D1CF206EB; productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (0E8A3AD980EC179856012B7E); };
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0;
+}
