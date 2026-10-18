@@ -1,122 +1,150 @@
-# Akita Guard для iPhone
+# Akita Guard
 
-Нативное приложение SwiftUI для управления временным доступом по IP через API
-caddy-access. Внешних зависимостей нет. Минимальная версия — iOS 17. Интерфейс рассчитан на iPhone, включая
-15 Pro Max; ориентация вертикальная, светлая и тёмная темы системные.
+Akita Guard manages temporary public-IP access to home services. This repository
+contains the native iPhone client and its Linux backend, with no third-party
+Swift or Python packages required.
 
-## Открыть и запустить на своём iPhone
+## Repository layout
 
-1. Открыть `AkitaGuard.xcodeproj` в Xcode.
-2. Выбрать схему **AkitaGuard**.
-3. В Signing & Capabilities выбрать свою Team / Personal Team. При необходимости
-   заменить Bundle Identifier `com.domyshev.AkitaGuard` на уникальный свой.
-4. Подключить iPhone к Mac, подтвердить доверие и включить Developer Mode на
-   телефоне, если Xcode попросит.
-5. Выбрать iPhone как устройство запуска и нажать Run.
+| Path | Purpose |
+| --- | --- |
+| `App/`, `Core/`, `Assets.xcassets/` | SwiftUI iPhone app, shared API client and assets |
+| `AkitaGuard.xcodeproj`, `Info.plist` | iOS project and application configuration |
+| `Package.swift`, `Tests/` | Portable Swift API-contract tests |
+| `backend/caddy-access/` | Python API, firewall worker, observer and Linux installer |
+| `backend/tests/` | Backend unit and local HTTP tests |
+| `Brand/`, `ICON.md` | Icon artwork and generation provenance |
+| `VALIDATION.md` | Historical validation and migration checks |
 
-Подписанный IPA и установка на физический iPhone требуют аккаунта/подписи
-владельца. Они не выполнялись автоматически. Аккаунт Apple в проект не включён.
+The backend moved from `domyshev-labs/homelab-tools/caddy-access` on 2026-10-18.
+Runtime paths and service names remain unchanged. Actual host configuration,
+network addresses, policies and deployment audit logs belong in the private
+infrastructure repository. Never commit tokens or filled environment files.
 
-## Подключение к Akita
+## iPhone setup
 
-1. Настроить доступ iPhone к сети API, например через Tailscale и subnet router.
-2. В приложении открыть «Настройки» и указать адрес своего API.
-   Пример: `http://192.168.1.10:9120` (заменить на свой адрес).
-   Предустановленного адреса сервера нет.
-3. Вставить **значение** `CADDY_ACCESS_TOKEN` из `/etc/caddy-access/api.env` на
-   Akita. Токен получить приватно через собственный терминал администратора:
-   в исходниках и документации значения нет.
-4. Нажать «Сохранить и проверить» и разрешить доступ к локальной сети в iOS.
-5. На вкладке «Доступ» нажать +, ввести внешний IP рабочего компьютера,
-   необязательное название и срок: 1, 4, 8, 24 часа, 7 или 30 дней. Приложение само ждёт подтверждения Akita.
-6. Для отзыва смахнуть строку влево или удержать её и подтвердить удаление.
+The app requires iOS 17 or later, targets iPhone in portrait orientation and
+supports system light/dark appearance, including iPhone 15 Pro Max layouts.
 
-Приложение использует существующие GET /v1/entries, GET /v1/status,
-POST /v1/entries, PATCH /v1/entries/ID, DELETE /v1/entries/ID и GET /v1/attempts. Оно не меняет серверную политику,
-постоянный домашний доступ или настройки Tailscale.
+1. Open `AkitaGuard.xcodeproj` in Xcode and select **AkitaGuard**.
+2. Choose your Team / Personal Team in Signing & Capabilities. If needed, replace
+   `com.domyshev.AkitaGuard` with your own unique bundle identifier.
+3. Connect your iPhone, confirm trust and enable Developer Mode if requested.
+4. Select the iPhone as the run destination and press Run.
 
-Ответ 202 считается только сохранением запроса. Успех показывается после свежего
-state=applied с нужной revision. Выключенный фильтр, ошибка, отсутствие свежего
-статуса и изменение другим устройством показываются отдельно. При потере связи
-после POST нет автоматического повторения запроса: нужно обновить список.
+Physical-device installation and signed IPA distribution require the owner's
+Apple signing account. No Apple account is included in the repository.
 
-## Токен и сеть
+## Backend setup
 
-- Токен хранится только в Keychain, WhenUnlockedThisDeviceOnly, не в UserDefaults,
-  не в iCloud и не в логах. «Удалить токен» очищает его с телефона, оставляя
-  список разрешений на сервере без изменений.
-- Только адрес сервера сохраняется в UserDefaults. Токен не включён в URL.
-- Запросы используют ephemeral URLSession без cookies и дискового cache;
-  HTTP redirects отклоняются, чтобы не передавать токен на другой адрес.
-- HTTP разрешён только для числовых частных IPv4 адресов/loopback/Tailscale;
-  HTTPS можно настроить отдельно. Для локального API указан ATS local-network
-  opt-in. Автоматического определения IP телефона или копирования буфера нет.
-- При использовании Tailscale через subnet router шифрование действует до
-  этого шлюза; HTTP от шлюза до API идёт внутри LAN. Для сквозного TLS
-  используйте HTTPS на сервере.
+Follow [backend installation and activation](backend/caddy-access/README.md).
+The API authenticates requests; a separate root worker reconciles expiring leases
+with iptables/ipset. The optional observer reports bounded connection-attempt
+metadata. Installation does not activate filtering automatically.
 
-## Демонстрация без сервера
+From the repository root:
 
-Выбрать схему **AkitaGuard Demo** и любой iPhone Simulator. В ней вымышленные
-IP и операции только в памяти: настоящие разрешения не затрагиваются, Keychain
-не читается, обращения к Akita не выполняются. Деморежим явно подписан на экране.
-В основной схеме demo не включён.
+```sh
+sudo bash backend/caddy-access/install.sh /path/to/root-policy.json
+```
 
-## Проверки
+Read the complete backend procedure before running this command: dependencies,
+private management routing, an initially disabled policy and a tested rollback
+are required. Keep the management API private and retain authentication on the
+services protected by the IP allowlist.
 
-Core содержит Swift Package только для локальных тестов API:
+## Connect the app
+
+1. Make the API reachable, for example through Tailscale and a subnet router.
+2. Open Settings and enter your server URL, e.g. `http://192.168.1.10:9120`.
+   No production server address is preconfigured.
+3. Privately obtain the value of `CADDY_ACCESS_TOKEN` from the server's
+   `/etc/caddy-access/api.env` using your administrator terminal and enter it in
+   the app. Never paste it into source, documentation, logs or a URL.
+4. Select Save and verify, and allow local-network access in iOS.
+5. On Access, select + and enter the work computer's public IP, an optional label
+   and a lifetime: 1, 4, 8, 24 hours, 7 days or 30 days. The app waits for the
+   backend to confirm application.
+6. Swipe or long-press an entry to revoke it, then confirm deletion.
+
+The current app interface is in Russian; documentation is in English.
+Supported endpoints are GET/POST `/v1/entries`, GET `/v1/status`, PATCH/DELETE
+`/v1/entries/ID` and GET `/v1/attempts`. The app does not change server policy,
+permanent home-network access or Tailscale configuration.
+
+A 202 response means queued, not applied. Success requires fresh `state=applied`
+with the matching revision. Disabled filtering, stale status, errors and changes
+from another device are handled separately. A POST is not retried automatically
+when the connection is lost; refresh the list first.
+
+## Credentials and networking
+
+- The token lives only in Keychain with `WhenUnlockedThisDeviceOnly`, never in
+  UserDefaults, iCloud or logs. Delete token clears the phone's copy without
+  deleting server leases. Only the server URL is stored in UserDefaults.
+- Ephemeral URLSession disables cookies and disk cache. Redirects are rejected
+  so the token cannot be forwarded to another destination.
+- HTTP is permitted only for numeric private IPv4, loopback and Tailscale
+  addresses. HTTPS may be configured separately. ATS local-network opt-in is
+  enabled. The app does not detect the phone's public IP or read the clipboard
+  automatically.
+- With a Tailscale subnet router, encryption ends at that router; HTTP continues
+  over the LAN to the API. Configure server HTTPS for TLS across that final hop.
+
+## Demo
+
+Select **AkitaGuard Demo** and an iPhone Simulator. Demo addresses are fictional,
+operations are in memory, Keychain is not read and no server requests are made.
+The UI visibly marks demo mode. The primary scheme does not enable it.
+
+## Verification
 
 ```sh
 swift test
+python3 -B -m unittest discover -s backend/tests -v
+bash -n backend/caddy-access/install.sh
 ```
 
-Проект приложения компилирует те же Core/*.swift напрямую, без загрузки пакетов
-и сети. Проверки покрывают контракт API, Bearer header, Python ISO timestamps,
-отказ при неверном токене, stale/disabled status, concurrent revisions, 202/polling,
-неверный ответ сервера и проверку URL/IP. Сборка для симулятора и тесты выполнены.
-Автоматические тесты используют фиктивные токены. Личные настройки и секреты
-не включены в репозиторий. Для подключения укажите свой сервер и токен.
+The app compiles the same `Core/*.swift` directly without downloading packages.
+Swift tests cover API contracts, Bearer authentication, Python ISO timestamps,
+invalid-token handling, disabled/stale status, concurrent revisions, 202/polling,
+invalid responses and URL/IP validation. Tests use fictional tokens.
+Linux firewall/NFLOG smoke checks are documented separately in the backend.
 
-Если в системе выбран только Command Line Tools, команды сборки запускать с
-`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`; глобальные настройки
-xcode-select менять не требуется.
+If Command Line Tools is the selected developer directory, use
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` for builds without
+changing global `xcode-select` settings.
 
-## Оформление
+## Debug provisioning from a trusted Mac
 
-Приложение называется **Akita Guard**. Иконка с акитой и сетевым медальоном
-создана встроенным imagegen; оригинал и финальный промпт находятся в ICON.md
-и Brand/.
+Debug builds support initial setup with `AKITA_SETUP_SERVER` and
+`AKITA_SETUP_TOKEN` in the child process environment used to launch devicectl.
+Do not put values in command arguments, logs or project files. The app saves the
+token in Keychain and clears these environment variables. The local receipt
+`Library/Caches/developer-setup-result.json` contains only `configured` and
+`connected`. This feature is not compiled into Release builds.
 
-## Настройка отладочной сборки с Mac
+## Version 1.1 behavior
 
-Только Debug-сборка поддерживает начальную настройку через переменные среды
-`AKITA_SETUP_SERVER` и `AKITA_SETUP_TOKEN` при запуске с доверенного Mac.
-Передавать их следует через среду дочернего процесса devicectl, без значений
-в аргументах команд, логах или файлах проекта. Приложение сохраняет токен
-в Keychain и очищает эти переменные из среды. Для проверки создаётся локальная
-квитанция `Library/Caches/developer-setup-result.json`, содержащая только
-`configured` и `connected`. В Release эта возможность не компилируется.
+- Labels start empty and can be renamed without changing expiry.
+- Seven- and thirty-day leases require the updated API and a 2592000-second
+  server limit. Renew starts a new lifetime and clears manual blocking.
+- Expired entries remain available for up to 30 days within the server's bounded
+  history. Block revokes access while preserving the entry and expiry; unblock
+  restores only the remaining lifetime. Expired entries must be renewed.
+- Delete removes the entry and revokes access after confirmation.
+- Refresh controls check connectivity immediately. While active, the app checks
+  roughly every 15 seconds and shows the last successful connection time.
+- Attempts shows blocked Caddy connection sources, last observation and approximate
+  counts. Manual refresh and pull-to-refresh show the load time; an independent
+  server heartbeat identifies stale data. The visible tab updates with the active
+  app's periodic checks. Allowing an observed IP requires a form and confirmation.
+- The phone and work computer may use different networks. Observed sources belong
+  to connections reaching Akita, including scanners; IP ownership is not established.
+  Data is rate-limited, retained for at most a day and is not a complete audit log.
+  Observations never grant access automatically.
 
-## Версия 1.1
+## Artwork
 
-- Название по умолчанию пустое; его можно изменить кнопкой «Название», не меняя срок.
-- Сроки 7 и 30 дней требуют обновлённого API и серверного лимита 2592000 секунд.
-- «Продлить» открывает выбор срока; новый срок начинается при подтверждении.
-  Истёкшие записи доступны в отдельном разделе до 30 дней, в пределах лимита
-  истории сервера. Продление также снимает ручную блокировку.
-- «Блокировать» сохраняет запись и исходный срок, но отзывает доступ.
-  «Разблокировать» возвращает доступ до прежнего срока. Истёкший срок нужно продлить.
-- «Удалить» полностью убирает запись после подтверждения; доступ отзывается.
-- Кнопки ↻ у состояния защиты и рядом с «Akita отвечает» немедленно проверяют
-  подключение. Автоматическая проверка выполняется примерно раз в 15 секунд,
-  пока приложение активно; время последней успешной проверки видно в настройках.
-- Вкладка «Попытки» показывает адреса заблокированных подключений к Caddy,
-  время последней попытки и приблизительное число наблюдений. Кнопка ↻ и
-  pull-to-refresh загружают список; рядом указаны дата и время успешной загрузки.
-  Серверный heartbeat проверяется отдельно, устаревшие данные отмечаются.
-  На открытой вкладке список также обновляется вместе с фоновой проверкой
-  активного приложения. IP из попытки разрешается только через форму и подтверждение.
-- Телефон и рабочий компьютер могут быть в разных сетях: в попытках виден
-  IP компьютера, обращающегося к Akita. Список включает и сканеры; личность
-  владельца IP не устанавливается. Данные ограничены по частоте, хранятся до
-  суток и не являются полным журналом. Автоматического допуска нет.
+The icon was generated with imagegen. Original artwork and the final prompt are
+preserved in [ICON.md](ICON.md) and `Brand/`.

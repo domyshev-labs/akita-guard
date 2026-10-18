@@ -22,3 +22,7 @@ xcuserdata/
 # Local screenshots and archives
 preview-*.png
 *.zip
+
+# Python backend caches
+__pycache__/
+*.py[cod]
